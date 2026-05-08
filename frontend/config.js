@@ -1,3 +1,3 @@
 window.KEJA_CONFIG = {
-  API_BASE_URL: "https://<your-render-service>.onrender.com/api"
+  API_BASE_URL: "https://mtaani-dq58.onrender.com/api"
 };
