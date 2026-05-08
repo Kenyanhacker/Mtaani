@@ -14,9 +14,19 @@ function createPgMemPool() {
 }
 
 const usePgMem = process.env.USE_PGMEM === "true" || !process.env.DATABASE_URL;
+
+function shouldUseSsl(connectionString) {
+  if (process.env.DATABASE_SSL === "true") return true;
+  if (!connectionString) return false;
+  return connectionString.includes("supabase.co");
+}
+
 const pool = usePgMem
   ? createPgMemPool()
-  : new Pool({ connectionString: process.env.DATABASE_URL });
+  : new Pool({
+    connectionString: process.env.DATABASE_URL,
+    ssl: shouldUseSsl(process.env.DATABASE_URL) ? { rejectUnauthorized: false } : undefined
+  });
 
 module.exports = {
   query: (text, params) => pool.query(text, params)

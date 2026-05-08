@@ -18,12 +18,24 @@ const allowedOrigins = (process.env.CORS_ORIGIN || "")
   .map((origin) => origin.trim())
   .filter(Boolean);
 
+function isOriginAllowed(origin) {
+  if (!origin) return true;
+  if (allowedOrigins.includes("*")) return true;
+  if (allowedOrigins.includes(origin)) return true;
+
+  // Supports patterns like https://*.vercel.app for preview deploys.
+  return allowedOrigins.some((candidate) => {
+    if (!candidate.includes("*")) return false;
+    const escaped = candidate.replace(/[.+?^${}()|[\]\\]/g, "\\$&").replace(/\*/g, ".*");
+    return new RegExp(`^${escaped}$`).test(origin);
+  });
+}
+
 app.use(
   cors({
     origin(origin, callback) {
       // Allow browserless tools and same-origin calls
-      if (!origin) return callback(null, true);
-      if (allowedOrigins.includes(origin)) return callback(null, true);
+      if (isOriginAllowed(origin)) return callback(null, true);
       return callback(new Error("CORS blocked for origin: " + origin));
     }
   })
