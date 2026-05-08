@@ -94,6 +94,71 @@ keja-platform/
 2. Update `API_BASE_URL` in `frontend/app.js` to backend URL.
 3. Configure HTTPS-only deployment.
 
+## Render + Vercel (Recommended Setup)
+
+This project is now wired for a split deployment:
+- Backend API on Render
+- Static frontend on Vercel
+
+### 1) Database (PostgreSQL)
+
+Use either:
+- a managed PostgreSQL from Render, or
+- Supabase/Postgres provider
+
+Then run:
+- `sql/schema.sql`
+- `sql/seed.sql`
+
+### 2) Deploy Backend to Render
+
+You can use `render.yaml` from repo root.
+
+Backend environment variables (Render service):
+- `PORT=4000`
+- `DATABASE_URL=<your-postgres-connection-string>`
+- `JWT_SECRET=<strong-random-secret>`
+- `USE_PGMEM=false`
+- `DATABASE_SSL=true` (recommended for managed DB)
+- `CORS_ORIGIN=https://<your-vercel-app>.vercel.app,https://*.vercel.app`
+
+After deploy, confirm:
+- `https://<your-render-service>.onrender.com/api/health` returns `{ "ok": true }`
+
+### 3) Configure Frontend API URL
+
+Set the backend API URL in:
+- `frontend/config.js`
+
+Example:
+
+```javascript
+window.KEJA_CONFIG = {
+  API_BASE_URL: "https://your-render-service.onrender.com/api"
+};
+```
+
+### 4) Deploy Frontend to Vercel
+
+In Vercel:
+- Import this repo
+- Set **Root Directory** to `frontend`
+- Deploy
+
+The frontend is static and reads API URL from `frontend/config.js`.
+
+### 5) Final Production Checks
+
+- Open `https://<your-vercel-app>.vercel.app/login`
+- Login as admin/host
+- Confirm listings load on homepage
+- Confirm host dashboard can create listings
+- Confirm admin dashboard loads analytics/users/listings
+
+If API calls fail in browser:
+- Recheck `CORS_ORIGIN` in Render env
+- Recheck `frontend/config.js` uses the exact Render `/api` URL
+
 ### Production Checklist
 
 - Use secure JWT secret (32+ chars).

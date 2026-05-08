@@ -29,7 +29,7 @@ router.post("/register", async (req, res) => {
     if (err.code === "23505") {
       return res.status(409).json({ error: "Email is already registered" });
     }
-    throw err;
+    return res.status(500).json({ error: "Registration failed", details: err.message });
   }
 });
 

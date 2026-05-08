@@ -1,7 +1,10 @@
 const isLocalhost = ["localhost", "127.0.0.1"].includes(window.location.hostname);
-const API_BASE_URL = isLocalhost
+const runtimeApiBaseUrl = window.KEJA_CONFIG && typeof window.KEJA_CONFIG.API_BASE_URL === "string"
+  ? window.KEJA_CONFIG.API_BASE_URL.trim()
+  : "";
+const API_BASE_URL = runtimeApiBaseUrl || (isLocalhost
   ? "http://localhost:4000/api"
-  : `${window.location.origin}/api`;
+  : `${window.location.origin}/api`);
 const listingGrid = document.getElementById("listingGrid");
 const skeletonGrid = document.getElementById("skeletonGrid");
 const emptyState = document.getElementById("emptyState");
@@ -38,9 +41,18 @@ function animateCount(id, target) {
 
 async function fetchJson(url, options = {}) {
   const response = await fetch(url, options);
-  const data = await response.json().catch(() => ({}));
+  const contentType = response.headers.get("content-type") || "";
+  const isJson = contentType.includes("application/json");
+  const data = isJson ? await response.json().catch(() => ({})) : null;
   if (!response.ok) {
-    throw new Error(data.error || "Request failed");
+    if (data && data.error) throw new Error(data.error);
+    if (!isJson) {
+      throw new Error(`API returned non-JSON response (${response.status}). Check backend health and API URL.`);
+    }
+    throw new Error("Request failed");
+  }
+  if (!isJson) {
+    throw new Error("API returned non-JSON response. Check backend deployment.");
   }
   return data;
 }
