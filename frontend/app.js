@@ -11,6 +11,20 @@ const emptyState = document.getElementById("emptyState");
 const mapBox = document.getElementById("mapBox");
 const toast = document.getElementById("toast");
 
+function escapeHtml(str) {
+  return String(str ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+function safeHttpUrl(url, fallback) {
+  const u = String(url ?? "").trim();
+  if (/^https?:\/\//i.test(u) && !/[\s"'<>]/.test(u)) return u;
+  return fallback;
+}
+
 const state = {
   savedOnly: false,
   saved: JSON.parse(localStorage.getItem("keja.saved") || "[]"),
@@ -73,16 +87,19 @@ function enable3DHover(card) {
 
 function listingTemplate(item) {
   const isSaved = state.saved.includes(item.id);
+  const defaultImg = "https://picsum.photos/seed/keja-default/700/500";
+  const coverSrc = safeHttpUrl(item.image_urls && item.image_urls[0], defaultImg);
+  const amenities = Array.isArray(item.amenities) ? item.amenities : [];
   return `
     <article data-id="${item.id}">
-      <span class="badge">${item.status_badge || "Verified"}</span>
+      <span class="badge">${escapeHtml(item.status_badge || "Verified")}</span>
       <button class="save ${isSaved ? "active" : ""}" data-save="${item.id}" aria-label="Save listing">${isSaved ? "♥" : "♡"}</button>
-      <img class="cover" src="${(item.image_urls && item.image_urls[0]) || "https://picsum.photos/seed/keja-default/700/500"}" loading="lazy" alt="${item.title}">
+      <img class="cover" src="${coverSrc}" loading="lazy" alt="${escapeHtml(item.title)}">
       <div class="card-body">
-        <h3>${item.title}</h3>
-        <p class="meta">${item.location} • ${item.rental_type} • KES ${item.price.toLocaleString()}</p>
-        <p class="meta">Host: ${item.host_name}</p>
-        <div class="pills">${item.amenities.map((a) => `<span class="pill">${a}</span>`).join("")}</div>
+        <h3>${escapeHtml(item.title)}</h3>
+        <p class="meta">${escapeHtml(item.location)} • ${escapeHtml(item.rental_type)} • KES ${item.price.toLocaleString()}</p>
+        <p class="meta">Host: ${escapeHtml(item.host_name)}</p>
+        <div class="pills">${amenities.map((a) => `<span class="pill">${escapeHtml(a)}</span>`).join("")}</div>
         <div class="actions">
           <button class="btn btn-secondary" data-detail="${item.id}">Details</button>
           <button class="btn btn-primary" data-book="${item.id}">Book</button>
@@ -94,12 +111,16 @@ function listingTemplate(item) {
 
 function renderMap(list) {
   if (!mapBox.classList.contains("active")) return;
-  mapBox.innerHTML = list.map((item) => `
+  mapBox.innerHTML = list.map((item) => {
+    const place = encodeURIComponent(item.location || "");
+    const mapHref = safeHttpUrl(item.map_url, `https://www.google.com/maps/search/?api=1&query=${place}`);
+    return `
     <div class="row-between">
-      <span>${item.title} (${item.location})</span>
-      <a class="btn btn-secondary" href="${item.map_url || `https://www.google.com/maps/search/${item.location}`}" target="_blank" rel="noopener">Open Map</a>
+      <span>${escapeHtml(item.title)} (${escapeHtml(item.location)})</span>
+      <a class="btn btn-secondary" href="${mapHref}" target="_blank" rel="noopener">Open Map</a>
     </div>
-  `).join("");
+  `;
+  }).join("");
 }
 
 function getSelectedAmenities() {
@@ -117,7 +138,8 @@ function filterAndSort(listings) {
     if (location && item.location !== location) return false;
     if (item.price > maxPrice) return false;
     if (rentalType && item.rental_type !== rentalType) return false;
-    if (selectedAmenities.length && !selectedAmenities.every((a) => item.amenities.includes(a))) return false;
+    const itemAmenities = Array.isArray(item.amenities) ? item.amenities : [];
+    if (selectedAmenities.length && !selectedAmenities.every((a) => itemAmenities.includes(a))) return false;
     if (state.savedOnly && !state.saved.includes(item.id)) return false;
     return true;
   });
@@ -125,7 +147,9 @@ function filterAndSort(listings) {
   if (sortBy === "low-price") result.sort((a, b) => a.price - b.price);
   if (sortBy === "high-price") result.sort((a, b) => b.price - a.price);
   if (sortBy === "newest") result.sort((a, b) => b.id - a.id);
-  if (sortBy === "popular") result.sort((a, b) => b.popularity_score - a.popularity_score);
+  if (sortBy === "popular") {
+    result.sort((a, b) => (b.popularity_score || 0) - (a.popularity_score || 0));
+  }
   return result;
 }
 
@@ -219,11 +243,14 @@ function openDetails(id) {
   const item = state.listings.find((x) => x.id === id);
   if (!item) return;
 
+  const defaultImg = "https://picsum.photos/seed/keja-default/700/500";
+  const imgSrc = safeHttpUrl(item.image_urls && item.image_urls[0], defaultImg);
+  const blurb = item.description || "Great student-friendly place with practical amenities and safe access.";
   document.getElementById("modalContent").innerHTML = `
-    <h3>${item.title}</h3>
-    <p class="meta">${item.location} • ${item.rental_type} • KES ${item.price.toLocaleString()}</p>
-    <img class="cover" src="${item.image_urls[0]}" alt="${item.title}">
-    <p class="meta" style="margin-top:8px;">${item.description || "Great student-friendly place with practical amenities and safe access."}</p>
+    <h3>${escapeHtml(item.title)}</h3>
+    <p class="meta">${escapeHtml(item.location)} • ${escapeHtml(item.rental_type)} • KES ${item.price.toLocaleString()}</p>
+    <img class="cover" src="${imgSrc}" alt="${escapeHtml(item.title)}">
+    <p class="meta" style="margin-top:8px;">${escapeHtml(blurb)}</p>
   `;
   openModal("detailsModal");
 }
@@ -268,6 +295,11 @@ async function submitViewingRequest() {
 }
 
 function setupEvents() {
+  const bookDateInput = document.getElementById("bookDate");
+  if (bookDateInput) {
+    bookDateInput.min = new Date().toISOString().split("T")[0];
+  }
+
   document.getElementById("pageTransition").classList.add("done");
   document.getElementById("menuBtn").addEventListener("click", () => {
     const menu = document.getElementById("menu");
@@ -349,12 +381,8 @@ function setupEvents() {
       window.location.href = "./login.html";
       return;
     }
-    if (window.innerWidth <= 720) {
-      closeModal("detailsModal");
-      document.getElementById("mobileSheet").classList.add("open");
-    } else {
-      showToast("Booking sent. Host will confirm shortly.");
-    }
+    closeModal("detailsModal");
+    document.getElementById("mobileSheet").classList.add("open");
   });
 
   document.getElementById("bookingForm").addEventListener("submit", async (e) => {

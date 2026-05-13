@@ -34,9 +34,17 @@ function isOriginAllowed(origin) {
 app.use(
   cors({
     origin(origin, callback) {
-      // Allow browserless tools and same-origin calls
+      // No Origin header (curl, server-to-server, same-origin in some cases)
+      if (!origin) return callback(null, true);
       if (isOriginAllowed(origin)) return callback(null, true);
-      return callback(new Error("CORS blocked for origin: " + origin));
+      // Local dev: if CORS_ORIGIN was never set, avoid a silent lockout
+      if (!allowedOrigins.length && process.env.NODE_ENV !== "production") {
+        return callback(null, true);
+      }
+      if (!allowedOrigins.length && process.env.NODE_ENV === "production") {
+        console.warn("CORS_ORIGIN is empty in production; browser requests will be denied.");
+      }
+      return callback(null, false);
     }
   })
 );
